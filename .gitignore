@@ -1,3 +1,5 @@
 /anystatus
 /bin/
 *.test
+requests.log
+*.log

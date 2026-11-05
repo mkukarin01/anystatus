@@ -29,6 +29,25 @@ Rules:
 - Any HTTP method is accepted (`GET`, `POST`, `HEAD`, …); the answer is the same.
 - Any other path returns a one-line usage hint with status 200.
 
+## Request log
+
+Every incoming request — method, full URL, all headers and the complete
+body — is appended to a log file as a wire-format dump, one entry per
+request:
+
+```
+=== 2026-11-05 23:04:12.481 +0300 POST /http?code=402 from 127.0.0.1:55555 ===
+POST /http?code=402 HTTP/1.1
+Host: localhost:8080
+Content-Type: application/x-www-form-urlencoded
+
+hello=world
+```
+
+Default file: `requests.log` in the working directory; change it with the
+`-log` flag or `LOG_FILE` env, disable with `-log ''`. In Docker the default
+is `/dev/stdout`, so dumps appear in `docker logs`.
+
 ## Docker
 
 ```bash
@@ -44,6 +63,7 @@ non-root, listens on `$PORT` (default 8080).
 | Knob | Default | Meaning |
 |---|---|---|
 | `-port` flag | `$PORT` env, else `8080` | listen port |
+| `-log` flag | `$LOG_FILE` env, else `requests.log` | full request dump log; empty disables |
 
 ## Development
 

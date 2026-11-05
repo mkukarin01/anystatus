@@ -1,8 +1,12 @@
 package main
 
 import (
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -81,4 +85,56 @@ func TestUsageHandler(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "/http?code=") {
 		t.Errorf("body = %q, want it to mention /http?code=", rec.Body.String())
 	}
+}
+
+func TestRequestLogger(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "requests.log")
+	rl, err := newRequestLogger(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var sawBody string
+	h := rl.middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("handler body read: %v", err)
+		}
+		sawBody = string(b)
+	}))
+
+	req := httptest.NewRequest("POST", "/http?code=402", strings.NewReader("hello=world"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Probe", "abc123")
+	req.RemoteAddr = "127.0.0.1:55555"
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	if sawBody != "hello=world" {
+		t.Errorf("handler saw body %q after the dump, want the original body", sawBody)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	for _, want := range []string{
+		"POST /http?code=402 HTTP/1.1",
+		"X-Probe: abc123",
+		"hello=world",
+		"from 127.0.0.1:55555",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("request log missing %q;\ngot:\n%s", want, got)
+		}
+	}
+}
+
+func TestRequestLoggerDisabled(t *testing.T) {
+	rl, err := newRequestLogger("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := rl.middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/http?code=200", nil))
 }
